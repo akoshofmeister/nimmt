@@ -1,93 +1,58 @@
 #!usr/bin/python
 import random
-import socket
-import time
 import json
-
-import select
 
 from board import Board
 from player import Player
 
-serversock = None
-HOST = '0.0.0.0'
-PORT = 6546
-SOCKET_TIMEOUT = 5
-
 all_players = {}
 board = None
+ALL_CARDS_COUNT = 104
+
 
 def broadcast(client_list, data):
-	for c in client_list:
-		c.send(data)
-
-def listen(host, port):
-	serversock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	serversock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-	serversock.bind((host, port))
-	serversock.listen(10)
-	while True:
-		print('waiting in select')
-		#all_socks = all_connections + [serversock]
-		all_socks = list(all_players.keys()) + [serversock]
-		readable, writable, exceptional = select.select(
-				all_socks, [], all_socks)
-		if len(exceptional) >= 1:
-			print('exceptional! %s' % (client_address,))
-			continue
-		if serversock in readable:
-			print('serversock in')
-			current_connection, client_address = serversock.accept()
-			new_player = Player(current_connection)
-			all_players[current_connection] = new_player
-			print('%s connected' % (client_address,))
-			continue
-		if len(readable) >= 1:
-			print('broadcast')
-			client = readable[0]
-			data = client.recv(1024)
-			if len(data) <= 0:
-				print('client - hangup')
-				del all_players[client]
-			else:
-				process_data(client, data)
+    jsondata = bytes(data, 'utf-8')
+    for c in client_list:
+        c.send(jsondata)
 
 
-def process_data(client, data):
-	# broadcast(list(all_players.keys()), data)
-	is_start = data == b'start\n' or data == b'start\r\n'
-	is_give_card = chr(data[0]) == 'g'
-	if is_start:
-		cards = list(range(1, 25))
-		random.shuffle(cards)
-
-		for player in all_players.values():
-			player.set_hand(cards[:10])
-			cards = cards[10:]
-
-		board = Board(cards[:4])
-		data = bytes(json.dumps(board.rows), 'utf-8')
-		broadcast(list(all_players.keys()), data)
-	elif is_give_card:
-		current_cards = int(data[1:])
-
-		all_players[client].set_card(current_cards)
-
-		current_cards = [p.card for p in all_players.values() if p.card]
-
-		if len(current_cards) == len(all_players):
-			broadcast(list(all_players.keys()), b'megvagyunk')
-	else:
-		print('unknown')
+def modifyPlayerList(playerOperation, client):
+    if "ACCEPT" == playerOperation:
+        all_players[client] = Player(client)
+    else:
+        del all_players[client]
 
 
-if __name__ == '__main__':
-	try:
-		listen(HOST, PORT)
-	except KeyboardInterrupt:
-		print('interrupt - exiting')
-		print('n_connections: %d' % (len(all_players),))
-		for client in all_players:
-			del client
-		time.sleep(1)
-		exit(9)
+def process_data(client, data_in_bytes, playerOperation):
+    if playerOperation:
+        modifyPlayerList(playerOperation, client)
+        return
+    data = str(data_in_bytes, 'utf-8').strip()
+
+    # broadcast(list(all_players.keys()), data)
+    is_start = data == "start"
+    is_give_card = data[0] == 'g'
+    if is_start:
+        cards = list(range(1, ALL_CARDS_COUNT))
+        random.shuffle(cards)
+
+        for player in all_players.values():
+            player.set_hand(cards[:10])
+            cards = cards[10:]
+
+        board = Board(cards[:4])
+        data = json.dumps(board.rows)
+        broadcast(list(all_players.keys()), data)
+    elif is_give_card:
+        current_cards = int(data[1:])
+        if all_players[client].set_card(current_cards) == None:
+            send_json='{"Not in your hand":' + str(current_cards) + '}'
+            broadcast([client], send_json)
+            return
+
+        current_cards = [p.card for p in all_players.values() if p.card]
+
+        if len(current_cards) == len(all_players):
+            broadcast(list(all_players.keys()), "megvagyunk")
+    else:
+        print('unknown ' + data)

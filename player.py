@@ -13,7 +13,9 @@ class Player:
         self.socket.send(bytes(json.dumps(hand), 'utf-8'))
 
     def set_card(self, card):
-        self.card = card
+        if card in self.hand:
+            self.card = card
+        return self.card
 
     def __del__(self):
         self.socket.close()
