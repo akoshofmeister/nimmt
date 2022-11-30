@@ -52,3 +52,7 @@ class Server_Socket:
         return current_connection
 
 
+def broadcast(client_list, data):
+    jsondata = bytes(data, 'utf-8')
+    for c in client_list:
+        c.send(jsondata)

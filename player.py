@@ -17,5 +17,19 @@ class Player:
             self.card = card
         return self.card
 
+    def query_user(self,options):
+        num = None
+        while True:
+            print('select one!')
+            print(options)
+            num = int(input())
+            if num in options:
+                break
+        return num
+
+    def select_row(self):
+        # print table
+        return self.query_user(list(range(4)))
+
     def __del__(self):
         self.socket.close()

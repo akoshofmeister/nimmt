@@ -1,7 +1,7 @@
 import time
 
-import server
-from runServer import Server_Socket
+import game
+from server_socket import Server_Socket
 
 HOST = '0.0.0.0'
 PORT = 6546
@@ -9,8 +9,7 @@ PORT = 6546
 if __name__ == '__main__':
     try:
         serversock=Server_Socket(HOST, PORT)
-        serversock.set_process_function(server.process_data)
-        serversock.listen()
+        game = game.Game(serversock)
 
     except KeyboardInterrupt:
         print('interrupt - exiting')
