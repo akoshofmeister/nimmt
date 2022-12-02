@@ -15,21 +15,21 @@ class Player:
 	def set_card(self, card):
 		if card in self.hand:
 			self.card = card
-		return self.card
+			return self.card
+		return None
 
-	def query_user(self,options):
+	def query_user(self, msg, options):
 		num = None
+		bmsg = bytes(msg + str(options), 'utf-8')
 		while True:
-			print('select one!')
-			print(options)
-			num = int(input())
+			self.socket.send(bmsg)
+			num = int(self.socket.recv(1024).strip())
 			if num in options:
 				break
 		return num
 
-	def select_row(self):
-		# print table
-		return self.query_user(list(range(4)))
+	def select_row(self, nrows):
+		return self.query_user('Pick up a row!', list(range(nrows)))
 
 	def __del__(self):
 		self.socket.close()

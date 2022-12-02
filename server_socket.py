@@ -1,16 +1,18 @@
+import enum
 import socket
 import select
 
-class Server_Socket:
+class SOCKET_OP(enum.Enum):
+	NEW_CONNECTION = 0
+	DATA_IN = 1
+	HANGUP = 2
 
+class Server_Socket:
 	clients = []
 
-	def __init__(self,host,port):
-		self.host=host
+	def __init__(self, host, port):
+		self.host = host
 		self.port = port
-
-	def set_process_function(self, process_function):
-		self.process_data=process_function
 
 	def listen(self):
 		serversock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -20,28 +22,26 @@ class Server_Socket:
 
 		while True:
 			print('waiting in select')
-			#all_socks = all_connections + [serversock]
 			all_socks = self.clients + [serversock]
-			readable, writable, exceptional = select.select(
-					all_socks, [], all_socks)
+			readable, writable, exceptional = select.select(all_socks, [], all_socks)
 			if len(exceptional) >= 1:
 				print('exceptional! %s' % (exceptional,))
 				continue
 			if len(readable) >= 1:
-				print('broadcast')
 				client = readable[0]
-				op = None
 				if client == serversock:
 					client = self.addConnection(serversock)
-					op = "ACCEPT"
 					data = None
+					op = SOCKET_OP.NEW_CONNECTION
 				else:
 					data = client.recv(1024)
 					if len(data) <= 0:
 						print('client - hangup')
 						self.clients.remove(client)
-						op = "HANGUP"
-				self.process_data(client, data, op)
+						op = SOCKET_OP.HANGUP
+					else:
+						op = SOCKET_OP.DATA_IN
+				yield (client, data, op)
 
 	def addConnection(self, serversock):
 		print('serversock in')
@@ -50,7 +50,8 @@ class Server_Socket:
 		print('%s connected' % (client_address,))
 		return current_connection
 
-def broadcast(client_list, data):
-	jsondata = bytes(data, 'utf-8')
-	for c in client_list:
-		c.send(jsondata)
+	@classmethod
+	def broadcast(cls, client_list, data):
+		jsondata = bytes(data, 'utf-8')
+		for c in client_list:
+			c.send(jsondata)

@@ -8,8 +8,9 @@ PORT = 6546
 
 if __name__ == '__main__':
 	try:
-		serversock=Server_Socket(HOST, PORT)
+		serversock = Server_Socket(HOST, PORT)
 		game = game.Game(serversock)
+		game.run()
 
 	except KeyboardInterrupt:
 		print('interrupt - exiting')
