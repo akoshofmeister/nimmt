@@ -1,60 +1,95 @@
 #!usr/bin/python
+import enum
 import json
 
 import board
 import server_socket
 from player import Player
 
+class MESSAGE_TYPE(enum.Enum):
+	CONTROL = 0
+	INFO = 1
+	QUERY = 2
+	ERROR = 3
+
 class Game:
-	def __init__(self, serversocket):
+	def __init__(self, serversocket, score_limit = 66, nturn = 10):
 		self.players = {}
 		self.board = None
 		self.ssock = serversocket
+		self.turn = 0
+		self.score_limit = score_limit
+		self.cards_dealt = nturn
 
 	def run(self):
 		print('game: running')
 		for client, msg, op in self.ssock.listen():
-			print(client, msg, op)
+			print(msg, op)
 			self.process_data(client, msg, op)
+			if self.turn == self.cards_dealt:
+				print('This round ended!')
+				self.print_scoreboard()
+				break
+		#print('Game ended!')
+		#print('Final scores:')
+		#self.print_scoreboard()
+
+	def print_scoreboard(self):
+		for i, p in enumerate(sorted(self.players.values(), key=lambda p: p.score)):
+			print(i + 1, ':', p.name, '-', p.score)
 
 	def process_data(self, client, data_in_bytes, playerOperation):
 		if playerOperation == server_socket.SOCKET_OP.NEW_CONNECTION:
-			self.players[client] = Player(client)
-			return
+			self.handle_new_connection(client)
 		elif playerOperation == server_socket.SOCKET_OP.HANGUP:
-			del self.players[client]
-			return
+			self.handle_disconnect(client)
 		elif playerOperation == server_socket.SOCKET_OP.DATA_IN:
-			pass
+			self.process_message(client, data_in_bytes)
 		else:
 			print('process_data: unknown operation:', playerOperation)
 			exit(1)
 
-		data = str(data_in_bytes, 'utf-8').strip()
+	def handle_new_connection(self, client):
+		self.players[client] = Player(client)
+
+	def handle_disconnect(self, client):
+		del self.players[client]
+
+	def process_message(self, client, bmsg):
+		msg = str(bmsg, 'utf-8').strip()
 
 		#TODO: refactor
-		is_start = data[0] == 's'
-		is_give_card = data[0] == 'g'
-		is_choice = data[0] in "cr"
+		is_start = msg[0] == 's'
+		is_give_card = msg[0] == 'g'
+		is_choice = msg[0] in "cr"
 
 		if is_start:
 			self.start()
 		elif is_give_card:
 			try:
-				current_cards = int(data[1:])
+				current_cards = int(msg[1:])
 			except:
 				return
 			self.giveCard(client, current_cards)
 		elif is_choice:
 			self.choice()
 		else:
-			print('unknown:', data)
+			print('unknown:', msg)
+
+	def is_valid_msg(self, msg):
+		try:
+			res = json.loads(msg)
+			print('type', res.get('type'))
+			return True
+		except(json.decoder.JSONDecodeError):
+			print('json decode error...')
+			return False
 
 	def start(self):
-		self.board = board.Board(4, 104, 5) #TODO: def parameters
+		self.board = board.Board()
 
 		for player in self.players.values():
-			player.set_hand(self.board.draw(10))
+			player.set_hand(self.board.draw(self.cards_dealt))
 
 		data = json.dumps(self.board.rows)
 		self.ssock.broadcast(list(self.players.keys()), data)
@@ -94,10 +129,16 @@ class Game:
 				print('place_cards: unknown operation:', ret)
 				exit(1)
 		print(self.board.rows)
-		self.ssock.broadcast(list(self.players.keys()), "megvagyunk\n")
 		for p in players_ready:
 			p.hand.remove(p.card)
 			p.card = None
+		self.turn = self.turn + 1
+		self.broadcast_turn()
 
-	def choice(self):
-		pass
+	def broadcast_turn(self):
+		board = dict()
+		board['board'] = self.board.rows
+		for p in self.players.values():
+			msg = board.copy()
+			msg['hand'] = p.hand
+			self.ssock.broadcast([p.socket], json.dumps(msg))
