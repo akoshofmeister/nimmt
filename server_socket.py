@@ -41,7 +41,7 @@ class Server_Socket:
 						op = SOCKET_OP.HANGUP
 					else:
 						op = SOCKET_OP.DATA_IN
-				yield (client, data, op)
+				yield client, data, op
 
 	def addConnection(self, serversock):
 		print('serversock in')
