@@ -13,9 +13,9 @@ class Board:
 		self.ncards = deck_size
 		self.deck = list(range(1, deck_size + 1))
 		random.shuffle(self.deck)
-		print(self.deck)
+		#print(self.deck)
 		self.rows = [[c] for c in self.draw(nrows)]
-		print(self.rows)
+		#print(self.rows)
 		self.max_row_len = max_row_len
 
 	@classmethod
